@@ -990,17 +990,21 @@ class CloudflareApi {
   async registerDomain(domain) {
     domain = domain.toLowerCase();
     const registeredDomains = await this.getDomainList();
-
+    // Izinkan wildcard hanya di depan, misal: *.sub.basima.my.id
     if (!domain.endsWith(rootDomain)) return 400;
     if (registeredDomains.includes(domain)) return 409;
-
+    // Validasi wildcard: hanya boleh di depan dan hanya satu '*'
+    if (domain.startsWith("*.")) {
+      const withoutWildcard = domain.slice(2);
+      if (withoutWildcard.includes("*")) return 400;
+      if (withoutWildcard.split(".").length < rootDomain.split(".").length + 1) return 400;
+    }
     try {
       const domainTest = await fetch(`https://${domain.replaceAll("." + APP_DOMAIN, "")}`);
       if (domainTest.status == 530) return 530;
     } catch (e) {
       return 400;
     }
-
     const url = `https://api.cloudflare.com/client/v4/accounts/${this.accountID}/workers/domains`;
     const res = await fetch(url, {
       method: "PUT",
@@ -1008,13 +1012,12 @@ class CloudflareApi {
         environment: "production",
         hostname: domain,
         service: serviceName,
-        zone_id: this.zoneID,
+        zone_id: this.zoneID
       }),
       headers: {
-        ...this.headers,
-      },
+        ...this.headers
+      }
     });
-
     return res.status;
   }
 }
